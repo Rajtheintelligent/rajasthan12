@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-# Import the specialized Streamlit GSheets Connection class
-from streamlit_gsheets_connection import GSheetsConnection 
+from streamlit_gsheets import GSheetsConnection
+
 
 # --- Configuration ---
 # The names of the tabs in your Google Sheet (Spreadsheet ID is configured in secrets.toml)
