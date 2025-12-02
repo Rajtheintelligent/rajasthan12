@@ -1,8 +1,5 @@
 streamlit
 pandas
 gspread
-streamlit-webrtc
-Pillow
-pyzbar
-opencv-python
-streamlit-gsheets-connection
+oauth2client
+
