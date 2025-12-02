@@ -37,7 +37,7 @@ def load_data():
         client = get_gsheet_client()
 
         # Open spreadsheet using sheet ID
-        sheet = client.open_by_key(st.secrets["spreadsheet_id"])
+        sheet = client.open_by_key(st.secrets["sheets"]["spreadsheet_id"])
 
         # Load roster
         roster_ws = sheet.worksheet(ROSTER_SHEET_NAME)
