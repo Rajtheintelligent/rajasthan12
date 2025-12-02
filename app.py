@@ -6,7 +6,7 @@ from google.oauth2.service_account import Credentials
 
 # --- CONFIG ---
 ROSTER_SHEET_NAME = "Roster"
-ATTENDANCE_LOG_SHEET_NAME = "Form Responses 1"
+ATTENDANCE_LOG_SHEET_NAME = "FormResponses"
 
 ROSTER_ID_COL = "Student ID"
 LOG_ID_COL = "ID"
