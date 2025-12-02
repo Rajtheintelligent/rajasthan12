@@ -23,6 +23,7 @@ st.set_page_config(
 def get_gsheet_client():
     """Authenticate using the service account stored in secrets.toml"""
     creds_dict = st.secrets["gcp_sheets"]
+
     creds = Credentials.from_service_account_info(
         creds_dict,
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
@@ -36,24 +37,25 @@ def load_data():
     try:
         client = get_gsheet_client()
 
-        # Open spreadsheet using sheet ID
-        sheet = client.open_by_key(st.secrets["sheets"]["spreadsheet_id"])
+        # Open spreadsheet using sheet ID (same block!)
+        spreadsheet_id = st.secrets["gcp_sheets"]["spreadsheet_id"]
+        sheet = client.open_by_key(spreadsheet_id)
 
-        # Load roster
+        # Load roster sheet
         roster_ws = sheet.worksheet(ROSTER_SHEET_NAME)
         df_roster = pd.DataFrame(roster_ws.get_all_records())
         df_roster[ROSTER_ID_COL] = df_roster[ROSTER_ID_COL].astype(str)
         df_roster = df_roster.set_index(ROSTER_ID_COL)
 
-        # Load attendance logs
+        # Load attendance logs sheet
         log_ws = sheet.worksheet(ATTENDANCE_LOG_SHEET_NAME)
         df_log = pd.DataFrame(log_ws.get_all_records())
         df_log[LOG_ID_COL] = df_log[LOG_ID_COL].astype(str)
 
-        # Mark present
+        # Present IDs
         present_ids = set(df_log[LOG_ID_COL].unique())
 
-        # Apply status
+        # Status column
         df_roster[STATUS_COL] = df_roster.index.map(
             lambda x: "PRESENT" if x in present_ids else "ABSENT"
         )
@@ -94,7 +96,7 @@ st.markdown(
 
 st.markdown("---")
 
-# Load Google Sheets Data
+# Load Data
 df_attendance, last_update, present_ids = load_data()
 
 # Manual Refresh Button
@@ -120,7 +122,7 @@ c4.metric("Last Scan", last_update)
 
 st.markdown("---")
 
-# Tabs for Present / Absent lists
+# Tabs for Present & Absent
 tab1, tab2 = st.tabs([f"✅ Present ({present})", f"❌ Absent ({absent})"])
 
 def style_df(df):
