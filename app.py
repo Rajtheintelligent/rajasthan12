@@ -8,7 +8,7 @@ from google.oauth2.service_account import Credentials
 ROSTER_SHEET_NAME = "Roster"
 ATTENDANCE_LOG_SHEET_NAME = "FormResponses"
 
-ROSTER_ID_COL = "Student ID"
+ROSTER_ID_COL = "ID"
 LOG_ID_COL = "ID"
 TIMESTAMP_COL = "Timestamp"
 STATUS_COL = "Attendance Status"
