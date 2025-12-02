@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from streamlit_gsheets import GSheetsConnection
+import gspread
+from google.oauth2.service_account import Credentials
 
 # --- CONFIG ---
 ROSTER_SHEET_NAME = "Roster"
@@ -12,29 +13,79 @@ LOG_ID_COL = "ID"
 TIMESTAMP_COL = "Timestamp"
 STATUS_COL = "Attendance Status"
 
-# --- Page Layout ---
 st.set_page_config(
     page_title="Real-Time Attendance Dashboard",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
+# ---- GOOGLE AUTH (Vercel Compatible) ----
+def get_gsheet_client():
+    """Authenticate using the service account stored in secrets.toml"""
+    creds_dict = st.secrets["gcp_service_account"]
+    creds = Credentials.from_service_account_info(
+        creds_dict,
+        scopes=["https://www.googleapis.com/auth/spreadsheets"]
+    )
+    client = gspread.authorize(creds)
+    return client
+
+# ---- DATA LOADING ----
+@st.cache_data(ttl=10)
+def load_data():
+    try:
+        client = get_gsheet_client()
+
+        # Open spreadsheet using sheet ID
+        sheet = client.open_by_key(st.secrets["spreadsheet_id"])
+
+        # Load roster
+        roster_ws = sheet.worksheet(ROSTER_SHEET_NAME)
+        df_roster = pd.DataFrame(roster_ws.get_all_records())
+        df_roster[ROSTER_ID_COL] = df_roster[ROSTER_ID_COL].astype(str)
+        df_roster = df_roster.set_index(ROSTER_ID_COL)
+
+        # Load attendance logs
+        log_ws = sheet.worksheet(ATTENDANCE_LOG_SHEET_NAME)
+        df_log = pd.DataFrame(log_ws.get_all_records())
+        df_log[LOG_ID_COL] = df_log[LOG_ID_COL].astype(str)
+
+        # Mark present
+        present_ids = set(df_log[LOG_ID_COL].unique())
+
+        # Apply status
+        df_roster[STATUS_COL] = df_roster.index.map(
+            lambda x: "PRESENT" if x in present_ids else "ABSENT"
+        )
+
+        # Last timestamp
+        df_log[TIMESTAMP_COL] = pd.to_datetime(
+            df_log[TIMESTAMP_COL], errors="coerce"
+        )
+        last_time = df_log[TIMESTAMP_COL].max()
+        last_time = (
+            "N/A" if pd.isna(last_time)
+            else last_time.strftime("%Y-%m-%d %I:%M:%S %p")
+        )
+
+        return df_roster, last_time, present_ids
+
+    except Exception as e:
+        st.error("Error loading Google Sheet data.")
+        st.exception(e)
+        return pd.DataFrame(), "N/A", set()
+
+# ---- UI ----
+
 st.title("🚌 Live Trip Attendance Tracker")
 
-# --- QR Scanner Button ---
-st.markdown("### 📷 Scan Attendance")
+# QR Scanner Button
+st.markdown("### Scan Attendance")
 st.markdown(
     """
     <a href="https://rajasthan11.vercel.app" target="_blank">
-        <button style="
-            background-color:#4CAF50; 
-            color:white; 
-            padding: 10px 20px; 
-            border:none; 
-            border-radius:8px;
-            cursor:pointer;
-            font-size:16px;">
-            Open QR Scanner
+        <button style="padding:10px 20px; font-size:18px; background:#2563eb; color:white; border:none; border-radius:8px;">
+            📷 Open QR Scanner
         </button>
     </a>
     """,
@@ -43,104 +94,55 @@ st.markdown(
 
 st.markdown("---")
 
-# --- Data Loading Function ---
-@st.cache_data(ttl=10)
-def load_and_process_data():
-    try:
-        conn = st.connection("gcp_sheets", type=GSheetsConnection)
+# Load Google Sheets Data
+df_attendance, last_update, present_ids = load_data()
 
-        # Roster
-        df_roster = conn.read(worksheet=ROSTER_SHEET_NAME, ttl=5).dropna(subset=[ROSTER_ID_COL])
-        df_roster[ROSTER_ID_COL] = df_roster[ROSTER_ID_COL].astype(str)
-        df_roster = df_roster.set_index(ROSTER_ID_COL)
-
-        # Log
-        df_log = conn.read(worksheet=ATTENDANCE_LOG_SHEET_NAME, ttl=5).dropna(subset=[LOG_ID_COL])
-        df_log[LOG_ID_COL] = df_log[LOG_ID_COL].astype(str)
-
-        present_ids = set(df_log[LOG_ID_COL].unique())
-
-        df_roster[STATUS_COL] = df_roster.index.to_series().apply(
-            lambda sid: "PRESENT" if sid in present_ids else "ABSENT"
-        )
-
-        # Last scan time
-        try:
-            df_log[TIMESTAMP_COL] = pd.to_datetime(df_log[TIMESTAMP_COL], errors='coerce')
-            last_update = df_log[TIMESTAMP_COL].max()
-            last_update = (
-                last_update.strftime("%Y-%m-%d %I:%M:%S %p")
-                if not pd.isna(last_update)
-                else "No scans yet"
-            )
-        except:
-            last_update = "Error reading time"
-
-        return df_roster, last_update, present_ids
-
-    except Exception as e:
-        st.error("Error loading Google Sheet. Check Sheet tab names and columns.")
-        st.exception(e)
-        return pd.DataFrame(), "Failed", set()
-
-# --- Load Data ---
-df_attendance, last_update, present_ids = load_and_process_data()
-
-# Manual refresh button
-if st.button("🔄 Manual Refresh Data"):
+# Manual Refresh Button
+if st.button("🔄 Refresh Now"):
     st.cache_data.clear()
-    st.success("Refreshing now...")
+    st.rerun()
+
+if df_attendance.empty:
+    st.warning("No roster data found. Check your Google Sheet.")
+    st.stop()
+
+# Metrics
+total = len(df_attendance)
+present = len(present_ids)
+absent = total - present
+
+c1, c2, c3, c4 = st.columns(4)
+
+c1.metric("Total Students", total)
+c2.metric("Present", present)
+c3.metric("Absent", absent)
+c4.metric("Last Scan", last_update)
 
 st.markdown("---")
 
-# --- Display Data ---
-if not df_attendance.empty:
+# Tabs for Present / Absent lists
+tab1, tab2 = st.tabs([f"✅ Present ({present})", f"❌ Absent ({absent})"])
 
-    total = len(df_attendance)
-    present = len(present_ids)
-    absent = total - present
+def style_df(df):
+    return df.style.applymap(
+        lambda x: "background-color:#d1fae5; color:#065f46; font-weight:bold;"
+        if x == "PRESENT"
+        else "background-color:#fee2e2; color:#991b1b;",
+        subset=[STATUS_COL]
+    )
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Students", total)
-    col2.metric("✅ PRESENT", present)
-    col3.metric("❌ ABSENT", absent)
-    col4.metric("Last Scan Time", last_update)
+with tab1:
+    df_present = df_attendance[df_attendance[STATUS_COL] == "PRESENT"]
+    st.dataframe(
+        style_df(df_present.reset_index()),
+        use_container_width=True,
+        hide_index=True
+    )
 
-    st.markdown("---")
-
-    # Tabs
-    tab1, tab2 = st.tabs([
-        f"✅ PRESENT ({present})",
-        f"❌ ABSENT ({absent})"
-    ])
-
-    def style_df(df):
-        return df.style.applymap(
-            lambda x: (
-                'background-color: #d1fae5; color:#065f46; font-weight:bold;'
-                if x == 'PRESENT'
-                else 'background-color: #fee2e2; color:#991b1b;'
-            ),
-            subset=[STATUS_COL]
-        )
-
-    # PRESENT TAB
-    with tab1:
-        df_p = df_attendance[df_attendance[STATUS_COL] == "PRESENT"]
-        st.dataframe(
-            style_df(df_p.reset_index()),
-            use_container_width=True,
-            hide_index=True
-        )
-
-    # ABSENT TAB
-    with tab2:
-        df_a = df_attendance[df_attendance[STATUS_COL] == "ABSENT"]
-        st.dataframe(
-            style_df(df_a.reset_index()),
-            use_container_width=True,
-            hide_index=True
-        )
-
-else:
-    st.warning("Roster not found or could not load.")
+with tab2:
+    df_absent = df_attendance[df_attendance[STATUS_COL] == "ABSENT"]
+    st.dataframe(
+        style_df(df_absent.reset_index()),
+        use_container_width=True,
+        hide_index=True
+    )
