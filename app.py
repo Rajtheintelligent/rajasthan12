@@ -22,7 +22,7 @@ st.set_page_config(
 # ---- GOOGLE AUTH (Vercel Compatible) ----
 def get_gsheet_client():
     """Authenticate using the service account stored in secrets.toml"""
-    creds_dict = st.secrets["gcp_service_account"]
+    creds_dict = st.secrets["gcp_sheets"]
     creds = Credentials.from_service_account_info(
         creds_dict,
         scopes=["https://www.googleapis.com/auth/spreadsheets"]
