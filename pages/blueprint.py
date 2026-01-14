@@ -4,7 +4,7 @@ import pandas as pd
 st.set_page_config(page_title="Question Paper Blueprint Generator", layout="wide")
 
 st.title("📘 Question Paper Blueprint Generator")
-st.caption("Supports sub-questions (2M + 3M from Q4 onwards)")
+st.caption("Q1–Q3: 5×1M | Q4–Q10: (i) 2M, (ii) 3M")
 
 # -------------------------
 # CONFIG
@@ -21,41 +21,63 @@ UNITS = [
 DIFFICULTY = ["Easy", "Medium", "HOTS"]
 Q_TYPE = ["Objective", "Subjective"]
 
-# -------------------------
-# QUESTION TAGGING
-# -------------------------
-st.subheader("📝 Question Tagging")
-
 question_data = []
 
-# Q1 to Q3 (single questions)
+st.subheader("📝 Question Tagging")
+
+# -------------------------
+# Q1 to Q3 (5 sub-questions of 1 mark each)
+# -------------------------
 for q in range(1, 4):
     with st.container(border=True):
-        st.markdown(f"### Question {q}")
+        st.markdown(f"### Question {q} (5 × 1 Mark)")
 
-        col1, col2, col3, col4 = st.columns(4)
+        for i in range(1, 6):
+            col1, col2, col3, col4 = st.columns(4)
 
-        unit = col1.selectbox("Unit", ["Select"] + UNITS, key=f"unit_{q}")
-        difficulty = col2.selectbox("Difficulty", DIFFICULTY, key=f"difficulty_{q}")
-        marks = col3.selectbox("Marks", [1], key=f"marks_{q}")
-        q_type = col4.selectbox("Question Type", Q_TYPE, key=f"type_{q}")
+            unit = col1.selectbox(
+                "Unit",
+                ["Select"] + UNITS,
+                key=f"unit_{q}_{i}"
+            )
 
-        if unit != "Select":
-            question_data.append({
-                "Question": f"Q{q}",
-                "Unit": unit,
-                "Difficulty": difficulty,
-                "Marks": 1,
-                "Type": q_type
-            })
+            difficulty = col2.selectbox(
+                "Difficulty",
+                DIFFICULTY,
+                key=f"diff_{q}_{i}"
+            )
 
-# Q4 to Q10 (sub-questions)
+            col3.selectbox(
+                "Marks",
+                [1],
+                key=f"marks_{q}_{i}"
+            )
+
+            q_type = col4.selectbox(
+                "Question Type",
+                Q_TYPE,
+                key=f"type_{q}_{i}"
+            )
+
+            if unit != "Select":
+                question_data.append({
+                    "Question": f"Q{q}({i})",
+                    "Unit": unit,
+                    "Difficulty": difficulty,
+                    "Marks": 1,
+                    "Type": q_type
+                })
+
+# -------------------------
+# Q4 to Q10 (2M + 3M)
+# -------------------------
 for q in range(4, 11):
     with st.container(border=True):
         st.markdown(f"### Question {q}")
 
-        col1, col2, col3, col4 = st.columns(4)
+        # (i) – 2 Marks
         st.markdown("**(i) – 2 Marks**")
+        col1, col2, col3, col4 = st.columns(4)
 
         unit_i = col1.selectbox("Unit", ["Select"] + UNITS, key=f"unit_{q}a")
         diff_i = col2.selectbox("Difficulty", DIFFICULTY, key=f"diff_{q}a")
@@ -73,8 +95,9 @@ for q in range(4, 11):
 
         st.divider()
 
-        col1, col2, col3, col4 = st.columns(4)
+        # (ii) – 3 Marks
         st.markdown("**(ii) – 3 Marks**")
+        col1, col2, col3, col4 = st.columns(4)
 
         unit_ii = col1.selectbox("Unit", ["Select"] + UNITS, key=f"unit_{q}b")
         diff_ii = col2.selectbox("Difficulty", DIFFICULTY, key=f"diff_{q}b")
@@ -140,6 +163,5 @@ if question_data:
         file_name="Question_Mapping.csv",
         mime="text/csv"
     )
-
 else:
     st.info("ℹ Please tag questions to generate blueprint.")
